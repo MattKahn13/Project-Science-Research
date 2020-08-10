@@ -7,18 +7,21 @@ from pandas_datareader import data
 import numpy as np
 import random as random
 import tensorflow as tf
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 
 # Set the start and end date
-start_date = '2017-01-01'
+start_date = '2018-01-01'
 end_date = '2019-02-01'
 # Set the ticker
-ticker = 'AMZN'
+ticker = 'TSLA'
 # Get the data
 data = data.get_data_yahoo(ticker, start_date, end_date)
 
 
-
-
+budget = 1000.0
+initial_budget = 1000.0
+initial_num_stocks = 0
 #print(data.head())
 pricesdf = data.Close.to_string(index=False)
 prices = (list(pricesdf.split()))[1:]
@@ -47,7 +50,10 @@ class QLearningDecisionPolicy(DecisionPolicy):
         self.actions = actions
         output_dim = len(actions)
         h1_dim = 200
-        self.sess = tf.Session(target='', graph=None, config=None)
+
+        config = ConfigProto()
+        config.gpu_options.allow_growth = True
+        self.sess = InteractiveSession(config=config)
         self.x = tf.placeholder(tf.float32, [None, input_dim])
         self.y = tf.placeholder(tf.float32, [output_dim])
         W1 = tf.Variable(tf.random_normal([input_dim,h1_dim]))
@@ -60,15 +66,18 @@ class QLearningDecisionPolicy(DecisionPolicy):
         self.train_op = tf.train.GradientDescentOptimizer(.01).minimize(loss)
     def select_action(self,current_state, step):
         threshold = min(self.epsilon, step / 1000.)
-        if random.random() < threshold:
+        if random.random() > threshold:
             action_q_vals = self.sess.run(self.q,feed_dict={self.x: current_state})
             action_idx = np.argmax(action_q_vals)
             action = self.actions[action_idx]
+            return action
         else:
             action = self.actions[random.randint(0,len(self.actions)-1)]
-
+            return action
+           
 
 def run_simulation(policy, initial_budget, initial_num_stocks, prices, hist, debug=False):
+
 
     budget = initial_budget
 
@@ -84,50 +93,53 @@ def run_simulation(policy, initial_budget, initial_num_stocks, prices, hist, deb
 
     for i in range(len(prices) - hist - 1):
 
-        
-
-        if i % 100 == 0:
-
-            #print('progress {:.2f}%'.format(float(100*i) / (len(prices) - hist - 1)))
+        #print('progress {:.2f}%'.format(float(100*i) / (len(prices) - hist - 1)))
             
 
-            current_state = np.asmatrix(np.hstack((prices[i:i+hist], budget, num_stocks)))
+        current_state = np.asmatrix(np.hstack((prices[i:i+hist], budget, num_stocks)))
 
-            current_portfolio = budget + num_stocks * share_value
+        current_portfolio = budget + num_stocks * share_value
 
-            action = policy.select_action(current_state, i)
+        action = policy.select_action(current_state, i)
 
-            share_value = float(prices[i + hist + 1])
+        share_value = float(prices[i + hist + 1])
+        
+        print(action)
 
-            if action == 'Buy' and budget >= share_value:
+        if action == 'Buy' and budget >= share_value:
+            
+            budget -= share_value
 
-                 budget -= share_value
+            num_stocks += 1
+            print(budget)
+           
 
-                 num_stocks += 1
+        elif action == 'Sell' and num_stocks > 0:
 
-            elif action == 'Sell' and num_stocks > 0:
+            budget += share_value
 
-                budget += share_value
+           
 
-                num_stocks -= 1
+            num_stocks -= 1
 
-            else:
+        else:
 
-                action = 'Hold'
+            action = 'Hold'
+        
 
-            new_portfolio = budget + num_stocks * share_value
+        new_portfolio = budget + num_stocks * share_value
 
-            reward = new_portfolio - current_portfolio
+        
+        
+        reward = new_portfolio - current_portfolio
 
-            next_state = np.asmatrix(np.hstack((prices[i+1:i+hist+1],
+        next_state = np.asmatrix(np.hstack((prices[i+1:i+hist+1],budget, num_stocks)))
 
-            budget, num_stocks)))
+        transitions.append((current_state, action, reward, next_state))
 
-            transitions.append((current_state, action, reward, next_state))
+        policy.update_q(current_state, action, reward, next_state)
 
-            policy.update_q(current_state, action, reward, next_state)
-
-            portfolio = budget + num_stocks * share_value
+        portfolio = budget + num_stocks * share_value
 
     if debug:
 
@@ -136,7 +148,7 @@ def run_simulation(policy, initial_budget, initial_num_stocks, prices, hist, deb
     return portfolio
 
 def run_simulations(policy, budget, num_stocks, prices, hist):
-    num_tries = 100
+    num_tries = 1
     final_portfolios = list()
     for i in range(num_tries):
         final_portfolio = run_simulation(policy, budget, num_stocks, prices, hist)
@@ -150,10 +162,11 @@ hist = 200
 
 policy = QLearningDecisionPolicy(actions, input_dim = 202)
 
-budget = 1000.0
+
 
 num_stocks = 0
 
 avg,std=run_simulations(policy,budget,num_stocks,prices, hist)
 
 print(avg, std)
+

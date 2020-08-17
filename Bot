@@ -1,4 +1,3 @@
-
 # Import pandas datareader
 import pandas_datareader
 pandas_datareader.__version__
@@ -7,166 +6,296 @@ from pandas_datareader import data
 import numpy as np
 import random as random
 import tensorflow as tf
-from tensorflow.compat.v1 import ConfigProto
-from tensorflow.compat.v1 import InteractiveSession
+from sklearn import svm
+from sklearn.model_selection import train_test_split
+
+Q_max = []
+portfolio_max = 0
+actions_max = []
+states_max = []
+
+def get_portfolio(action, budget, num_stocks, hist, prices, i):
+
+    other = 0
+
+    share_value = float(prices[i + hist + 1])
+    #share_value = float(random.randint(0,300))
+
+
+
+    if action == 'Buy' and budget >= share_value:
+        budget -= share_value
+        num_stocks += 1
+
+    elif action == 'Sell' and num_stocks > 0:
+        budget += share_value
+        num_stocks -= 1
+
+    else:
+        action = 'Hold'
+        other -=1
+    portfolio = budget + num_stocks * share_value
+    next_state = list(prices[i+1:i+hist+1])
+    next_state.append(budget)
+    next_state.append(num_stocks)
+
+    return(budget, num_stocks, portfolio, next_state)
+
+def get_reward(action, budget, num_stocks, hist, prices, i):
+    
+    other = 0
+
+    current_state = list((prices[i:i+hist], budget, num_stocks))
+    
+    share_value = float(prices[i + hist])
+    #share_value = float(random.randint(0,300))
+
+    current_portfolio = budget + num_stocks * share_value
+
+
+
+
+        
+
+    if action == 'Buy' and budget >= share_value:
+            
+        budget -= share_value
+
+        num_stocks += 1
+
+           
+
+    elif action == 'Sell' and num_stocks > 0:
+
+        budget += share_value
+
+           
+
+        num_stocks -= 1
+
+    else:
+
+        action = 'Hold'
+
+
+        
+    share_value = float(prices[i + hist+1])
+    new_portfolio = budget + num_stocks * share_value
+
+
+        
+    reward = new_portfolio - current_portfolio + other
+    
+
+
+    
+    next_state = list((prices[i+1:i+hist+1]))
+    next_state.append(budget)
+    next_state.append(num_stocks)
+
+
+
+
+    portfolio = budget + num_stocks * share_value
+    return(reward, next_state, current_state)
+
+
+
+
+
 
 # Set the start and end date
-start_date = '2018-01-01'
-end_date = '2019-02-01'
+start_date = '2018-01-07'
+end_date = '2020-07-02'
 # Set the ticker
-ticker = 'TSLA'
+ticker = 'AMZN'
 # Get the data
 data = data.get_data_yahoo(ticker, start_date, end_date)
 
 
-budget = 1000.0
-initial_budget = 1000.0
+
+initial_budget = 10000.0
 initial_num_stocks = 0
+epsilon = .5
+gamma = .75
+alpha = .9
+initial_current_state = 0
 #print(data.head())
 pricesdf = data.Close.to_string(index=False)
 prices = (list(pricesdf.split()))[1:]
+
+prices_2 = prices[600:749]
+prices = prices[0:599]
+
+
 #print(prices)   
 
 
 
-class DecisionPolicy:
-    def select_action(self, current_state, step):
-        pass
-    def update_q(self, state, action, reward, next_state):
-        pass
-
-class RandomDecisionPolicy(DecisionPolicy):
-    def __init__(self, actions):
-        self.actions = actions
-        
-    def select_action(self, current_state, step):
-        action = self.actions[random.randint(0, len(self.actions) -1)]
-        #print(action)
-        return action
-class QLearningDecisionPolicy(DecisionPolicy):
-    def __init__(self, actions, input_dim):
-        self.epsilon = .5
-        self.gamma = .001
-        self.actions = actions
-        output_dim = len(actions)
-        h1_dim = 200
-
-        config = ConfigProto()
-        config.gpu_options.allow_growth = True
-        self.sess = InteractiveSession(config=config)
-        self.x = tf.placeholder(tf.float32, [None, input_dim])
-        self.y = tf.placeholder(tf.float32, [output_dim])
-        W1 = tf.Variable(tf.random_normal([input_dim,h1_dim]))
-        b1= tf.Variable(tf.constant(0.1,shape=[h1_dim]))
-        h1 = tf.nn.relu(tf.matmul(self.x, W1) + b1)
-        W2 = tf.Variable(tf.random_normal([h1_dim,output_dim]))
-        b2 = tf.Variable(tf.constant(.1, shape=[output_dim]))
-        self.q = tf.nn.relu(tf.matmul(h1,W2) +b2)
-        loss = tf.square(self.y - self.q)
-        self.train_op = tf.train.GradientDescentOptimizer(.01).minimize(loss)
-    def select_action(self,current_state, step):
-        threshold = min(self.epsilon, step / 1000.)
-        if random.random() > threshold:
-            action_q_vals = self.sess.run(self.q,feed_dict={self.x: current_state})
-            action_idx = np.argmax(action_q_vals)
-            action = self.actions[action_idx]
-            return action
-        else:
-            action = self.actions[random.randint(0,len(self.actions)-1)]
-            return action
-           
-
-def run_simulation(policy, initial_budget, initial_num_stocks, prices, hist, debug=False):
-
-
-    budget = initial_budget
-
-    num_stocks = initial_num_stocks
-
-    share_value = 0
-
-    
-    transitions = list()
-
-    
-    
-
-    for i in range(len(prices) - hist - 1):
-
-        #print('progress {:.2f}%'.format(float(100*i) / (len(prices) - hist - 1)))
-            
-
-        current_state = np.asmatrix(np.hstack((prices[i:i+hist], budget, num_stocks)))
-
-        current_portfolio = budget + num_stocks * share_value
-
-        action = policy.select_action(current_state, i)
-
-        share_value = float(prices[i + hist + 1])
-        
-        print(action)
-
-        if action == 'Buy' and budget >= share_value:
-            
-            budget -= share_value
-
-            num_stocks += 1
-            print(budget)
-           
-
-        elif action == 'Sell' and num_stocks > 0:
-
-            budget += share_value
-
-           
-
-            num_stocks -= 1
-
-        else:
-
-            action = 'Hold'
-        
-
-        new_portfolio = budget + num_stocks * share_value
-
-        
-        
-        reward = new_portfolio - current_portfolio
-
-        next_state = np.asmatrix(np.hstack((prices[i+1:i+hist+1],budget, num_stocks)))
-
-        transitions.append((current_state, action, reward, next_state))
-
-        policy.update_q(current_state, action, reward, next_state)
-
-        portfolio = budget + num_stocks * share_value
-
-    if debug:
-
-     print('${}t{} shares'.format(budget, num_stocks))
-
-    return portfolio
-
-def run_simulations(policy, budget, num_stocks, prices, hist):
-    num_tries = 1
-    final_portfolios = list()
-    for i in range(num_tries):
-        final_portfolio = run_simulation(policy, budget, num_stocks, prices, hist)
-        final_portfolios.append(final_portfolio)
-    avg, std = np.mean(final_portfolios), np.std(final_portfolios)
-    return avg, std
-
 actions = ['Buy', 'Sell', 'Hold']
-
 hist = 200
 
-policy = QLearningDecisionPolicy(actions, input_dim = 202)
+
+
+for _ in range(100):
+    print('Progress... {:.2f}%'.format(float(_/1))) 
+    actual_actions_list = []
+    actual_states_list = []
+    budget = initial_budget
+    num_stocks = initial_num_stocks
+    chosen_budget = initial_budget
+    chosen_num_stocks = initial_num_stocks
+    Q = np.array(np.zeros([(len(prices)-hist-1),3]))
+    current_state = initial_current_state
+    
+    for i in range(len(prices)-hist-1):    
+
+        
+        num_list = []
+        rewards_list = []
+        next_states_list = []
+        next_state_rewards_list = []
+        
+        for j in range(len(actions)):
+            budget = chosen_budget
+            num_stocks = chosen_num_stocks
+            action = actions[j]
+            reward, next_state, current_state = get_reward(action, budget, num_stocks, hist, prices, i)
+            rewards_list.append(reward)
+            num_list.append(budget)
+            num_list.append(num_stocks)
+
+            for _ in range(len(actions)):
+                budget,num_stocks = num_list[j], num_list[j+1]
+                action = actions[_]
+                next_reward,x,x = get_reward(action, budget, num_stocks, hist, prices, i)
+                next_state_rewards_list.append(next_reward)
+
+        
+        max_future_buy = max(next_state_rewards_list[0:2])
+
+        max_future_sell = max(next_state_rewards_list[3:5])
+        max_future_hold = max(next_state_rewards_list[6:8])
+        max_future_rewards = [max_future_buy, max_future_sell, max_future_hold]
+        
+        share_value = float(prices[i + hist+1])
+        new_portfolio = budget + num_stocks * share_value
+
+        for _ in range(len(actions)):
+            #max_future_reward = max_future_rewards[_]
+            max_future_reward = max(map(float,prices))-new_portfolio
+            current_reward = rewards_list[_]
+            current_Q = Q[i,_]
+            new_Q = current_Q + alpha*(current_reward) + gamma*(max_future_reward)
+            Q[i,_] = new_Q
+        
+        Q_state_list = list(Q[i,:])
+        Q_state_list_max = max(Q_state_list)
+        Q_index = Q_state_list.index(Q_state_list_max)
+        
+        
+
+        if random.randint(1,10) != 1:
+          actual_action = actions[Q_index]
+        else:
+          actual_action = actions[random.randint(0,2)]
+          
+
+        
+        chosen_budget, chosen_num_stocks, portfolio, next_state = get_portfolio(actual_action, budget, num_stocks, hist, prices, i)
+        actual_actions_list.append(actual_action)
+        actual_states_list.append(next_state)
+    if portfolio > portfolio_max:
+      portfolio_max = portfolio
+      Q_max = Q
+      actions_max = actual_actions_list
+      states_max = actual_states_list
+#print(Q_max)
+print('Training Results: ${:.2f}'.format(float(portfolio_max)))
+#print(len(actions_max))
+#print((states_max[1]))
+#Last edited 8-15 8:47 am
+
+
+actions_num = []
+for _ in actions_max:
+    if _ == "Buy":
+        actions_num.append(1)
+    elif _ == "Sell":
+        actions_num.append(2)
+    elif _ == "Hold":
+        actions_num.append(3)
+
+states = (states_max)
+actions = (actions_num)
+
+df = pd.DataFrame(list(zip(states, actions)), 
+               columns =['States', 'Actions'])
+
+#X = int(df.Actions.to_string(index=False))
+#y = int(df.States.to_string(index=False))
+
+X= states
+y = actions
 
 
 
-num_stocks = 0
 
-avg,std=run_simulations(policy,budget,num_stocks,prices, hist)
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=0)
 
-print(avg, std)
 
+clf = svm.SVC()
+clf.fit(X_train,y_train)
+score = clf.score(X_test, y_test)
+a = clf.predict(X_test[10:11])
+#print(X_test[0])
+
+#Make prices longer and then divide it in two pieces to fix error
+
+
+prices = prices_2
+
+def get_stats(action, budget, num_stocks, hist, prices):
+
+    other = 0
+
+    share_value = float(prices[i + hist + 1])
+    #share_value = float(random.randint(0,300))
+
+    if action == 'Buy' and budget >= share_value:
+        budget -= share_value
+        num_stocks += 1
+
+    elif action == 'Sell' and num_stocks > 0:
+        budget += share_value
+        num_stocks -= 1
+
+    else:
+        action = 'Hold'
+        other -=1
+    portfolio = budget + num_stocks * share_value
+    next_state = list(prices[i+1:i+hist+1])
+    next_state.append(budget)
+    next_state.append(num_stocks)
+
+    return(budget, num_stocks, portfolio, next_state)
+
+budget = initial_budget
+num_stocks = initial_num_stocks
+
+for i in range(len(prices)-hist-1):
+    current_state = list(prices[i+1:i+hist+1])
+    current_state.append(budget)
+    current_state.append(num_stocks)
+    state = current_state
+    action_num = clf.predict(state)
+    if action_num == 1:
+        action = "Buy"
+    elif action_num == 2:
+        action = "Sell"
+    elif action_num == 3:
+        action = "Hold"
+    budget, num_stocks, portfolio, next_state = get_stats(action, budget, num_stocks, hist, prices)
+print('Final Portfolio Value: ${:.2f}'.format(float(portfolio)))
+
+    

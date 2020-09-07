@@ -1,301 +1,673 @@
-# Import pandas datareader
-import pandas_datareader
-pandas_datareader.__version__
-import pandas as pd
-from pandas_datareader import data
-import numpy as np
-import random as random
-import tensorflow as tf
-from sklearn import svm
-from sklearn.model_selection import train_test_split
+print("1500")
+def avg_list(lst1):
+  lst3 = []
+  for _ in range(len(lst1[0])):
+    lst4 = []
+    for i in lst1:
+      lst4.append(i[_])
+    lst3.append(statistics.mean(lst4))
+  return lst3
 
-Q_max = []
-portfolio_max = 0
-actions_max = []
-states_max = []
+total_training = []
+final_portfolio_list = []
+training_portfolio_list = []
+total_testing = []
 
-def get_portfolio(action, budget, num_stocks, hist, prices, i):
+trials = 100
 
-    other = 0
+for _ in range(trials):
+  list1 = []
+  print('Progress... {:.2f}%'.format(float(_/1)))
+  import pandas_datareader
+  pandas_datareader.__version__
+  import pandas as pd
+  from pandas_datareader import data
+  import numpy as np
+  import random as random
+  from sklearn import svm
+  from sklearn.model_selection import train_test_split
+  import matplotlib.pyplot as plt
+  import statistics
+  import copy
 
-    share_value = float(prices[i + hist + 1])
-    #share_value = float(random.randint(0,300))
+  from sklearn.naive_bayes import GaussianNB
+  from sklearn.svm import SVC
+  from sklearn.datasets import load_digits
+  from sklearn.model_selection import learning_curve
+  from sklearn.model_selection import ShuffleSplit
+  from sklearn.neural_network import MLPClassifier
+  from sklearn.preprocessing import StandardScaler
 
+  Q_max = []
+  portfolio_max = 0
+  actions_max = []
+  states_max = []
+  port_list_max = []
 
+  def get_portfolio(action, budget, num_stocks, hist, prices, i):
 
-    if action == 'Buy' and budget >= share_value:
-        budget -= share_value
-        num_stocks += 1
+      other = 0
 
-    elif action == 'Sell' and num_stocks > 0:
-        budget += share_value
-        num_stocks -= 1
-
-    else:
-        action = 'Hold'
-        other -=1
-    portfolio = budget + num_stocks * share_value
-    next_state = list(prices[i+1:i+hist+1])
-    next_state.append(budget)
-    next_state.append(num_stocks)
-
-    return(budget, num_stocks, portfolio, next_state)
-
-def get_reward(action, budget, num_stocks, hist, prices, i):
-    
-    other = 0
-
-    current_state = list((prices[i:i+hist], budget, num_stocks))
-    
-    share_value = float(prices[i + hist])
-    #share_value = float(random.randint(0,300))
-
-    current_portfolio = budget + num_stocks * share_value
-
+      share_value = float(prices[i + hist + 1])
+      #share_value = float(random.randint(0,300))
 
 
 
-        
+      if action == 'Buy' and budget >= share_value:
+          budget -= share_value
+          num_stocks += 1
 
-    if action == 'Buy' and budget >= share_value:
-            
-        budget -= share_value
+      elif action == 'Sell' and num_stocks > 0:
+          budget += share_value
+          num_stocks -= 1
 
-        num_stocks += 1
+      else:
+          action = 'Hold'
+          
+      portfolio = budget + num_stocks * share_value
+      next_state = list(prices[i+1:i+hist+1])
+      next_state.append(budget)
+      next_state.append(num_stocks)
 
-           
+      return(budget, num_stocks, portfolio, next_state)
 
-    elif action == 'Sell' and num_stocks > 0:
+  def get_reward(action, budget, num_stocks, hist, prices, i):
+      
+      other = 0
 
-        budget += share_value
+      current_state = list((prices[i:i+hist], budget, num_stocks))
+      
+      share_value = float(prices[i + hist])
+      #share_value = float(random.randint(0,300))
 
-           
-
-        num_stocks -= 1
-
-    else:
-
-        action = 'Hold'
-
-
-        
-    share_value = float(prices[i + hist+1])
-    new_portfolio = budget + num_stocks * share_value
-
-
-        
-    reward = new_portfolio - current_portfolio + other
-    
-
-
-    
-    next_state = list((prices[i+1:i+hist+1]))
-    next_state.append(budget)
-    next_state.append(num_stocks)
+      current_portfolio = budget + num_stocks * share_value
 
 
 
 
-    portfolio = budget + num_stocks * share_value
-    return(reward, next_state, current_state)
-
-
-
-
-
-
-# Set the start and end date
-start_date = '2018-01-07'
-end_date = '2020-07-02'
-# Set the ticker
-ticker = 'AMZN'
-# Get the data
-data = data.get_data_yahoo(ticker, start_date, end_date)
-
-
-
-initial_budget = 10000.0
-initial_num_stocks = 0
-epsilon = .5
-gamma = .75
-alpha = .9
-initial_current_state = 0
-#print(data.head())
-pricesdf = data.Close.to_string(index=False)
-prices = (list(pricesdf.split()))[1:]
-
-prices_2 = prices[600:749]
-prices = prices[0:599]
-
-
-#print(prices)   
-
-
-
-actions = ['Buy', 'Sell', 'Hold']
-hist = 200
-
-
-
-for _ in range(100):
-    print('Progress... {:.2f}%'.format(float(_/1))) 
-    actual_actions_list = []
-    actual_states_list = []
-    budget = initial_budget
-    num_stocks = initial_num_stocks
-    chosen_budget = initial_budget
-    chosen_num_stocks = initial_num_stocks
-    Q = np.array(np.zeros([(len(prices)-hist-1),3]))
-    current_state = initial_current_state
-    
-    for i in range(len(prices)-hist-1):    
-
-        
-        num_list = []
-        rewards_list = []
-        next_states_list = []
-        next_state_rewards_list = []
-        
-        for j in range(len(actions)):
-            budget = chosen_budget
-            num_stocks = chosen_num_stocks
-            action = actions[j]
-            reward, next_state, current_state = get_reward(action, budget, num_stocks, hist, prices, i)
-            rewards_list.append(reward)
-            num_list.append(budget)
-            num_list.append(num_stocks)
-
-            for _ in range(len(actions)):
-                budget,num_stocks = num_list[j], num_list[j+1]
-                action = actions[_]
-                next_reward,x,x = get_reward(action, budget, num_stocks, hist, prices, i)
-                next_state_rewards_list.append(next_reward)
-
-        
-        max_future_buy = max(next_state_rewards_list[0:2])
-
-        max_future_sell = max(next_state_rewards_list[3:5])
-        max_future_hold = max(next_state_rewards_list[6:8])
-        max_future_rewards = [max_future_buy, max_future_sell, max_future_hold]
-        
-        share_value = float(prices[i + hist+1])
-        new_portfolio = budget + num_stocks * share_value
-
-        for _ in range(len(actions)):
-            #max_future_reward = max_future_rewards[_]
-            max_future_reward = max(map(float,prices))-new_portfolio
-            current_reward = rewards_list[_]
-            current_Q = Q[i,_]
-            new_Q = current_Q + alpha*(current_reward) + gamma*(max_future_reward)
-            Q[i,_] = new_Q
-        
-        Q_state_list = list(Q[i,:])
-        Q_state_list_max = max(Q_state_list)
-        Q_index = Q_state_list.index(Q_state_list_max)
-        
-        
-
-        if random.randint(1,10) != 1:
-          actual_action = actions[Q_index]
-        else:
-          actual_action = actions[random.randint(0,2)]
           
 
-        
-        chosen_budget, chosen_num_stocks, portfolio, next_state = get_portfolio(actual_action, budget, num_stocks, hist, prices, i)
-        actual_actions_list.append(actual_action)
-        actual_states_list.append(next_state)
-    if portfolio > portfolio_max:
-      portfolio_max = portfolio
-      Q_max = Q
-      actions_max = actual_actions_list
-      states_max = actual_states_list
-#print(Q_max)
-print('Training Results: ${:.2f}'.format(float(portfolio_max)))
-#print(len(actions_max))
-#print((states_max[1]))
-#Last edited 8-15 8:47 am
+      if action == 'Buy':
+          
+          if budget <= share_value:
+              
+              other -= 100
+          else:
+
+              budget -= share_value
+
+              num_stocks += 1
+              if prices[0] < prices[i]:
+                  other += 100
+
+            
+
+      elif action == 'Sell':
+          
+          if num_stocks <= 0:
+              
+              other -= 100
+          else:
+              budget += share_value
+
+              num_stocks -= 1
+              if prices[0] > prices[i]:
+                  other += 100
+          
 
 
-actions_num = []
-for _ in actions_max:
-    if _ == "Buy":
-        actions_num.append(1)
-    elif _ == "Sell":
-        actions_num.append(2)
-    elif _ == "Hold":
-        actions_num.append(3)
+      else:
 
-states = (states_max)
-actions = (actions_num)
-
-df = pd.DataFrame(list(zip(states, actions)), 
-               columns =['States', 'Actions'])
-
-#X = int(df.Actions.to_string(index=False))
-#y = int(df.States.to_string(index=False))
-
-X= states
-y = actions
+          action = 'Hold'
 
 
 
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=0)
+      
+      share_value = float(prices[i + hist+1])
+      new_portfolio = budget + num_stocks * share_value
 
 
-clf = svm.SVC()
-clf.fit(X_train,y_train)
-score = clf.score(X_test, y_test)
-a = clf.predict(X_test[10:11])
-#print(X_test[0])
-
-#Make prices longer and then divide it in two pieces to fix error
+          
+      reward = new_portfolio - current_portfolio + other
+      
 
 
-prices = prices_2
+      
+      next_state = list((prices[i+1:i+hist+1]))
+      next_state.append(budget)
+      next_state.append(num_stocks)
 
-def get_stats(action, budget, num_stocks, hist, prices):
 
-    other = 0
 
-    share_value = float(prices[i + hist + 1])
-    #share_value = float(random.randint(0,300))
 
-    if action == 'Buy' and budget >= share_value:
-        budget -= share_value
-        num_stocks += 1
+      portfolio = budget + num_stocks * share_value
+      return(reward, next_state, current_state)
 
-    elif action == 'Sell' and num_stocks > 0:
-        budget += share_value
-        num_stocks -= 1
 
-    else:
-        action = 'Hold'
-        other -=1
-    portfolio = budget + num_stocks * share_value
-    next_state = list(prices[i+1:i+hist+1])
-    next_state.append(budget)
-    next_state.append(num_stocks)
 
-    return(budget, num_stocks, portfolio, next_state)
 
-budget = initial_budget
-num_stocks = initial_num_stocks
 
-for i in range(len(prices)-hist-1):
-    current_state = list(prices[i+1:i+hist+1])
-    current_state.append(budget)
-    current_state.append(num_stocks)
-    state = current_state
-    action_num = clf.predict(state)
-    if action_num == 1:
-        action = "Buy"
-    elif action_num == 2:
-        action = "Sell"
-    elif action_num == 3:
-        action = "Hold"
-    budget, num_stocks, portfolio, next_state = get_stats(action, budget, num_stocks, hist, prices)
-print('Final Portfolio Value: ${:.2f}'.format(float(portfolio)))
+  date750 = '2017-01-07'
+  date1125 = '2015-07-15'
+  date1500 = '2014-01-16'
+  date2250 = '2011-01-22'
+  date3000 = '2008-02-01'
+  
 
+  # Set the start and end date
+  start_date = '2014-01-16'
+  end_date = '2020-01-01'
+  # Set the ticker
+  ticker = 'AMZN'
+  # Get the data
+  data = data.get_data_yahoo(ticker, start_date, end_date)
+
+  #print(data)
+  
+  initial_budget = 10000.0
+  initial_num_stocks = 0
+  epsilon = .5
+  gamma = .1
+  alpha = .1
+  initial_current_state = 0
+  #print(data.head())
+  pricesdf = data.Close.to_string(index=False)
+
+  
+
+  prices = (list(pricesdf.split()))[1:]
+  prices = list(map(float,prices))
+
+  
+
+  prices_copy = copy.copy(prices)
+  prices_2 = prices[1200:]
+  prices = prices[:1200]
+
+  datesdf = data.index.values
+  #print(type(datesdf))
+  dates = list(datesdf)
+  #print(len(dates))
+  #print(len(prices))
+
+  dates_copy = copy.copy(dates)
+
+  dates_2 = dates[1200:]
+  dates = dates[:1200]
+
+  
+  #plt.xticks()
+  #plt.yticks()
+  #plt.show()
+
+
+  
+  #print(prices)   
+  
+
+
+  actions = ['Buy', 'Sell', 'Hold']
+  hist = 100
+
+  
+
+  for _ in range(150):
+      print('Progress... {:.2f}%'.format(float(_/1.5))) 
+      actual_actions_list = []
+      actual_states_list = []
+      port_list = []
+      budget = initial_budget
+      num_stocks = initial_num_stocks
+      chosen_budget = initial_budget
+      chosen_num_stocks = initial_num_stocks
+      Q = np.array(np.zeros([(len(prices)-hist-1),3]))
+      current_state = initial_current_state
+      
+      
+      
+      for i in range(len(prices)-hist-1):    
+
+          
+          num_list = []
+          rewards_list = []
+          next_states_list = []
+          next_state_rewards_list = []
+          
+          for j in range(len(actions)):
+              budget = chosen_budget
+              num_stocks = chosen_num_stocks
+              action = actions[j]
+              reward, next_state, current_state = get_reward(action, budget, num_stocks, hist, prices, i)
+              rewards_list.append(reward)
+              num_list.append(budget)
+              num_list.append(num_stocks)
+
+              for _ in range(len(actions)):
+                  budget,num_stocks = num_list[j], num_list[j+1]
+                  action = actions[_]
+                  next_reward,x,x = get_reward(action, budget, num_stocks, hist, prices, i)
+                  next_state_rewards_list.append(next_reward)
+
+          
+          max_future_buy = max(next_state_rewards_list[0:2])
+
+          max_future_sell = max(next_state_rewards_list[3:5])
+          max_future_hold = max(next_state_rewards_list[6:8])
+          max_future_rewards = [max_future_buy, max_future_sell, max_future_hold]
+          
+          share_value = float(prices[i + hist+1])
+          new_portfolio = budget + num_stocks * share_value
+
+          for _ in range(len(actions)):
+              #max_future_reward = max_future_rewards[_]
+              max_future_reward = max(list(map(float,prices))[i:]) * chosen_num_stocks + chosen_budget
+              current_reward = rewards_list[_]
+              
+              current_Q = Q[i,_]
+              new_Q = current_Q + alpha*(current_reward) + gamma*(max_future_reward)
+              
+              Q[i,_] = new_Q
+          
+          Q_state_list = list(Q[i,:])
+          Q_state_list_max = max(Q_state_list)
+          
+          Q_index = Q_state_list.index(Q_state_list_max)
+          
+          
+          
+          if random.randint(1,10) != 1:
+            actual_action = actions[Q_index]
+          else:
+            actual_action = actions[random.randint(0,2)]
+          
+
+          
+          chosen_budget, chosen_num_stocks, portfolio, next_state = get_portfolio(actual_action, budget, num_stocks, hist, prices, i)
+          port_list.append(portfolio)
+          actual_actions_list.append(actual_action)
+          actual_states_list.append(next_state)
+      
+      if portfolio > portfolio_max:
+        portfolio_max = portfolio
+        Q_max = Q
+        actions_max = actual_actions_list
+        states_max = actual_states_list
+        port_list_max = port_list
+
+  #print(Q_max)
+  #print('Training Results: ${:.2f}'.format(float(portfolio_max)))
+  training_portfolio_list.append(portfolio_max)
+  total_training.append(port_list_max)
+  #print(len(actions_max))
+  #print((states_max[1]))
+  #Last edited 8-15 8:47 am
+
+
+  actions_num = []
+  for _ in actions_max:
+      if _ == "Buy":
+          actions_num.append(1)
+      elif _ == "Sell":
+          actions_num.append(2)
+      elif _ == "Hold":
+          actions_num.append(3)
+
+  states = (states_max)
+  actions = (actions_num)
+
+  df = pd.DataFrame(list(zip(states, actions)), 
+                columns =['States', 'Actions'])
+
+  #X = int(df.Actions.to_string(index=False))
+  #y = int(df.States.to_string(index=False))
+
+
+  
+
+
+  X= states
+  y = actions
+
+
+
+
+
+  #scaler = StandardScaler().fit(X)
+  
+  
+  #X = scaler.transform(X)
+
+  
+  #X = states
+
+
+
+  X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+
+  #clf = svm.SVC()
+
+  clf = MLPClassifier(solver='adam', alpha=1e-5, max_iter= 10000, learning_rate='adaptive', hidden_layer_sizes=(100,), random_state=1)
+
+
+
+
+  clf.fit(X_train,y_train)
+  score = clf.score(X_test, y_test)
+
+  
+  score = clf.score(X_test, y_test)
+  a = clf.predict(X_test[10:15])
+
+  
+
+  #print(X_test[-1])
+  #print(a)
+
+  #print(X_test[0])
+
+  #Make prices longer and then divide it in two pieces to fix error
+
+
+
+
+  prices = prices_2
+
+  
+
+  def get_stats(action, budget, num_stocks, hist, prices):
+
+      other = 0
+
+      share_value = float(prices[i + hist + 1])
+      #share_value = float(random.randint(0,300))
+
+      if action == 'Buy' and budget >= share_value:
+          budget -= share_value
+          num_stocks += 1
+
+      elif action == 'Sell' and num_stocks > 0:
+          budget += share_value
+          num_stocks -= 1
+
+      else:
+          action = 'Hold'
+      
+      portfolio = budget + num_stocks * share_value
+      next_state = list(prices[i+1:i+hist+1])
+      next_state.append(budget)
+      next_state.append(num_stocks)
+
+      return(budget, num_stocks, portfolio, next_state)
+
+  budget = initial_budget
+  num_stocks = initial_num_stocks
+
+  testing_portfolio_list = []
+
+  
+  for i in range(len(prices)-hist-1):
+      action_num = 0
+      action = 0
+      current_state = list(prices[i+1:i+hist+1])
+      current_state.append(budget)
+      current_state.append(num_stocks)
+      state = current_state
+      temp_list = []
+      temp_list.append(state)
+      state = temp_list
+
+      #state = scaler.transform(state)
+
+
+      action_num = clf.predict(state)
+      
+      
+
+      if action_num == 1:
+          action = "Buy"
+      elif action_num == 2:
+          action = "Sell"
+      elif action_num == 3:
+          action = "Hold"
+      
+
+      
+
+      budget, num_stocks, portfolio, next_state = get_stats(action, budget, num_stocks, hist, prices)
+
+      testing_portfolio_list.append(portfolio)
+  total_testing.append(testing_portfolio_list)
+  #print('Final Portfolio Value: ${:.2f}'.format(float(portfolio)))
+  final_portfolio_list.append(portfolio)
+train,test = statistics.mean(training_portfolio_list), statistics.mean(final_portfolio_list)
+train_std, test_std = statistics.pstdev(training_portfolio_list), statistics.pstdev(final_portfolio_list)
+
+
+
+final_score = (test / initial_budget) / (len(prices)-hist-1) 
+
+
+print('Trials: {:.0f}'.format(float(trials)))
+
+print('Initial Budget: ${:.2f}'.format(float(initial_budget)))
+
+print('Average Training Results: ${:.2f}'.format(float(train)))
+print('Average Portfolio Value: ${:.2f}'.format(float(test)))
+
+print('Training Standard Deviation: ${:.2f}'.format(float(train_std)))
+print('Portfolio Standard Deviation: ${:.2f}'.format(float(test_std)))
+
+print('Score: {:.4f}'.format(float(final_score)))
+
+
+
+portfolio_progression = avg_list(total_training)
+testing_progression = avg_list(total_testing)
+
+
+
+
+prices = prices_copy[0:1200]
+prices_2 = prices_copy[1200:]
+
+dates = dates_copy[:1200]
+dates_2 = dates_copy[1200:]
+
+
+
+training_dates = dates_copy[0:len(portfolio_progression)]
+testing_dates = dates_copy[1200: 1200 + len(testing_progression)]
+
+
+
+#print(portfolio_progression)
+#print(testing_progression)
+
+plt.plot(dates,prices, color = "green", label = "Training Data")
+plt.plot(dates_2,prices_2, color = "red", label = "Testing Data")  
+plt.title("Figure 1. {} Closing Stock Price" .format(ticker))
+plt.xticks(rotation='vertical')
+plt.legend()
+plt.show()
+
+plt.clf()
+
+plt.plot(training_dates, portfolio_progression, color = "blue", label = "Training Progression")
+plt.plot(testing_dates, testing_progression, color = "red", label = "Testing Progression")
+plt.title("Figure 2. {} Portfolio Progression" .format(ticker))
+plt.xticks(rotation='vertical')
+plt.legend()
+plt.show()
+
+plt.clf()
+
+
+
+plt.plot(testing_dates, testing_progression, color = "red",  label = "Testing Progression")
+plt.title("Figure 3. {} Testing Portfolio Progression" .format(ticker))
+plt.xticks(rotation='vertical')
+plt.legend()
+plt.show()
+
+plt.clf()
+
+
+def plot_learning_curve(estimator, title, X, y, axes=None, ylim=None, cv=None,
+                        n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
+
+    """
     
+    Generate 3 plots: the test and training learning curve, the training
+    samples vs fit times curve, the fit times vs score curve.
+
+    Parameters
+    ----------
+    estimator : object type that implements the "fit" and "predict" methods
+        An object of that type which is cloned for each validation.
+
+    title : string
+        Title for the chart.
+
+    X : array-like, shape (n_samples, n_features)
+        Training vector, where n_samples is the number of samples and
+        n_features is the number of features.
+
+    y : array-like, shape (n_samples) or (n_samples, n_features), optional
+        Target relative to X for classification or regression;
+        None for unsupervised learning.
+
+    axes : array of 3 axes, optional (default=None)
+        Axes to use for plotting the curves.
+
+    ylim : tuple, shape (ymin, ymax), optional
+        Defines minimum and maximum yvalues plotted.
+
+    cv : int, cross-validation generator or an iterable, optional
+        Determines the cross-validation splitting strategy.
+        Possible inputs for cv are:
+
+          - None, to use the default 5-fold cross-validation,
+          - integer, to specify the number of folds.
+          - :term:`CV splitter`,
+          - An iterable yielding (train, test) splits as arrays of indices.
+
+        For integer/None inputs, if ``y`` is binary or multiclass,
+        :class:`StratifiedKFold` used. If the estimator is not a classifier
+        or if ``y`` is neither binary nor multiclass, :class:`KFold` is used.
+
+        Refer :ref:`User Guide <cross_validation>` for the various
+        cross-validators that can be used here.
+
+    n_jobs : int or None, optional (default=None)
+        Number of jobs to run in parallel.
+        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+        for more details.
+
+    train_sizes : array-like, shape (n_ticks,), dtype float or int
+        Relative or absolute numbers of training examples that will be used to
+        generate the learning curve. If the dtype is float, it is regarded as a
+        fraction of the maximum size of the training set (that is determined
+        by the selected validation method), i.e. it has to be within (0, 1].
+        Otherwise it is interpreted as absolute sizes of the training sets.
+        Note that for classification the number of samples usually have to
+        be big enough to contain at least one sample from each class.
+        (default: np.linspace(0.1, 1.0, 5))
+    """
+    if axes is None:
+        _, axes = plt.subplots(1, 3, figsize=(20, 5))
+
+    axes[0].set_title(title)
+    if ylim is not None:
+        axes[0].set_ylim(*ylim)
+    axes[0].set_xlabel("Training examples")
+    axes[0].set_ylabel("Score")
+
+    train_sizes, train_scores, test_scores, fit_times, _ = \
+        learning_curve(estimator, X, y, cv=cv, n_jobs=n_jobs,
+                       train_sizes=train_sizes,
+                       return_times=True)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+    fit_times_mean = np.mean(fit_times, axis=1)
+    fit_times_std = np.std(fit_times, axis=1)
+
+    # Plot learning curve
+    axes[0].grid()
+    axes[0].fill_between(train_sizes, train_scores_mean - train_scores_std,
+                         train_scores_mean + train_scores_std, alpha=0.1,
+                         color="r")
+    axes[0].fill_between(train_sizes, test_scores_mean - test_scores_std,
+                         test_scores_mean + test_scores_std, alpha=0.1,
+                         color="g")
+    axes[0].plot(train_sizes, train_scores_mean, 'o-', color="r",
+                 label="Training score")
+    axes[0].plot(train_sizes, test_scores_mean, 'o-', color="g",
+                 label="Cross-validation score")
+    axes[0].legend(loc="best")
+
+
+
+    """
+    # Plot n_samples vs fit_times
+    axes[1].grid()
+    axes[1].plot(train_sizes, fit_times_mean, 'o-')
+    axes[1].fill_between(train_sizes, fit_times_mean - fit_times_std,
+                         fit_times_mean + fit_times_std, alpha=0.1)
+    axes[1].set_xlabel("Training examples")
+    axes[1].set_ylabel("fit_times")
+    axes[1].set_title("Scalability of the model")
+    
+
+
+    # Plot fit_time vs score
+    axes[2].grid()
+    axes[2].plot(fit_times_mean, test_scores_mean, 'o-')
+    axes[2].fill_between(fit_times_mean, test_scores_mean - test_scores_std,
+                         test_scores_mean + test_scores_std, alpha=0.1)
+    axes[2].set_xlabel("fit_times")
+    axes[2].set_ylabel("Score")
+    axes[2].set_title("Performance of the model")
+    """
+    return plt
+
+
+fig, axes = plt.subplots(3, 2, figsize=(20, 30))
+
+X, y = states, actions
+
+"""
+
+title = "Learning Curves (Naive Bayes)"
+# Cross validation with 100 iterations to get smoother mean test and train
+# score curves, each time with 20% data randomly selected as a validation set.
+cv = ShuffleSplit(n_splits=100, test_size=0.2, random_state=0)
+
+estimator = GaussianNB()
+plot_learning_curve(estimator, title, X, y, axes=axes[:, 0], ylim=(.2, 1.01),
+                    cv=cv, n_jobs=4)
+"""
+
+title = "Learning Curves (MLP)"
+cv = ShuffleSplit(n_splits=100, test_size=0.2, random_state=0)
+
+estimator = MLPClassifier(solver='adam', alpha=1e-5, max_iter= 10000, learning_rate='adaptive', hidden_layer_sizes=(100,), random_state=1)
+
+plot_learning_curve(estimator, title, X, y, axes=axes[:, 0], ylim=(.4, .7),
+                    cv=cv, n_jobs=4)
+
+"""
+title = r"Learning Curves (SVM, RBF kernel, $\gamma=0.001$)"
+# SVC is more expensive so we do a lower number of CV iterations:
+cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+
+estimator = SVC(gamma=0.001)
+plot_learning_curve(estimator, title, X, y, axes=axes[:, 1], ylim=(.2, 1.01),
+                    cv=cv, n_jobs=4)
+"""
+plt.show()
+

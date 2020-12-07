@@ -265,7 +265,7 @@ for _ in range(trials):
               current_reward = rewards_list[_]
               
               current_Q = Q[i,_]
-              new_Q = current_Q + alpha*(current_reward) + gamma*(max_future_reward)
+              new_Q = current_Q + alpha*((current_reward) + gamma*(max_future_reward))
               
               Q[i,_] = new_Q
           
